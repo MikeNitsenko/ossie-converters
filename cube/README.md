@@ -221,8 +221,8 @@ specification, such as T-SQL, cannot be selected.
 
 Omitting `--source-dialect` preserves the existing `ANSI_SQL` labels. Ordinary import
 keeps its legacy permissive fallback: unparseable SQL can pass through without a
-syntax-validation error. Other conversion requirements, including view projection's
-column attribution checks, still apply.
+syntax-validation error. Other conversion requirements, including column attribution
+checks during view projection, still apply.
 
 Export prefers `ANSI_SQL` with `--dialect` prepending a warehouse dialect (e.g.
 `SNOWFLAKE` for a Snowflake-backed Cube model). `OSSIE_SQL_2026`, Ossie's portable
