@@ -20,7 +20,7 @@
 # Cross-converter interoperability
 
 Repository-owned acceptance and pairwise checks for [issue #41](https://github.com/apache/ossie-converters/issues/41).
-The registry includes **all 19 converter projects**, with explicit capability skips.
+The registry includes **all 21 converter projects**, with explicit capability skips.
 Cube, Databricks, and dbt remain the targets of the focused semantic regressions.
 The agreed design and remaining milestones are in [the implementation plan](../docs/plans/issue-41-interop-matrix.md).
 
@@ -62,7 +62,7 @@ uv run --project interop --locked python -m interop --no-prepare
 # Attempt optional native gates. Cube requires a built checkout.
 OSSIE_CUBE_REPO=/path/to/cube uv run --project interop --locked python -m interop --native
 
-# Enforce failed, empty, or skipped required checks.
+# Enforce failures, empty outputs, and unexpected skips.
 uv run --project interop --locked python -m interop --strict
 ```
 
@@ -82,7 +82,7 @@ Timed-out process groups are killed on POSIX systems. Logs go directly to files.
 | Hex, Snowflake | Export only; native-to-Ossie import is not implemented |
 | Holistics | Compiled dataset JSON import and AML source export; re-import of generated AML requires a Holistics compiler |
 | Polaris | Explicit skip: requires a provisioned live REST catalog, outside the file runner |
-| Ontology | Explicit skip: uses the ontology domain/schema, requiring a separate matrix |
+| Ontology, Palantir, RelationalAI | Explicit skip: uses the ontology domain/schema, requiring a separate matrix |
 
 All adapters run in the owning converter's environment. New native-content
 inspectors count format-specific model members; these checks do not imply vendor
@@ -90,8 +90,9 @@ compilation or platform acceptance. Holistics checks AML member declarations onl
 Its selected import/export dialect is BIGQUERY and exports use the placeholder
 connection `interop_warehouse`; no live connection is created.
 Existing vendor fixtures are reused, plus a small independently authored Honeydew
-workspace. Missing directions never run a dummy successful command. The report
-includes a capabilities table even for registrations with no native fixture.
+workspace. OrionBelt installs its locked `obml-validation` extra so its native
+semantic validation is available during export checks. Missing directions never
+run a dummy successful command. The report includes a capabilities table even for registrations with no native fixture.
 `import_requires_files` records repository-relative prerequisites that may be absent.
 A missing prerequisite skips imports and target re-imports while leaving export
 checks available. Salesforce needs
@@ -119,7 +120,7 @@ examples are intentionally outside this matrix.
   other selected converter. The returned document must pass the pinned validator.
   Named datasets/physical sources, fields, metrics, keys, relationships, and
   extensions are compared. Before/after counts and structural changes are saved.
-  The full registry currently schedules 342 Tier A and 288 Tier B cases across
+  The full registry currently schedules 378 Tier A and 320 Tier B cases across
   16 native fixtures and two canonical documents. Unsupported directions and
   unavailable or invalid upstream sources remain visible as skips.
   For dbt targets, re-import exercises MetricFlow's manifest parser; Tier A
@@ -156,10 +157,14 @@ silently add to the harness.
 
 **Exit codes:** default report-only mode returns 0 even when converters fail or
 are unavailable; configuration/harness/reporting errors return 2. `--strict`
-returns 1 for `FAIL`, `EMPTY`, or `SKIP` in preparation, source, or Tier A/B
-results or registered binding regressions, and for an attempted native gate that fails. Optional native-gate skips
-do not fail strict mode. `LOSSY` remains reportable and is not automatically
-blocking. Native-gate failures never overwrite Tier A/B grades.
+returns 1 for `FAIL`, `EMPTY`, or unexpected `SKIP` in preparation, source,
+Tier A/B cases, or registered regressions, and for an attempted native gate that
+fails. A skip declared through `skip`, `import_skip`, or `roundtrip_skip` has
+`expected_skip: true` in JSON; dependent source imports, cases, and regressions
+inherit that marker. These declared capability skips do not fail strict mode.
+Missing toolchains, prerequisite files, failed upstream stages, and unmarked
+skips remain blocking. Optional native-gate skips do not fail strict mode.
+`LOSSY` remains reportable and is not automatically blocking. Native-gate failures never overwrite Tier A/B grades.
 Document regression failures, empty outputs, and unavailable required targets
 also block strict mode. Their diagnostics and expected/actual assertions are
 retained in report-only mode.
@@ -283,7 +288,8 @@ view exposure, or SQL values in general.
 `regressions/<name>/result.json` records expected/actual bindings per metric and
 the original fixture check. The same directory retains the expectations file,
 final native model, return-export logs, and an optional native compiler result.
-`FAIL`, `EMPTY`, or dependency `SKIP` in a registered regression blocks `--strict`.
+`FAIL`, `EMPTY`, or an unexpected dependency `SKIP` in a registered regression
+blocks `--strict`; declared capability skips retain their exemption.
 A regression's `OK` means those binding assertions passed; other model losses
 and conversion warnings remain visible separately.
 
@@ -331,7 +337,9 @@ records exactly what ran. Keep the entire run directory when sharing artifacts.
 [Interop matrix](../.github/workflows/interop-ci.yml) runs the full registry on
 pull requests to `main`, pushes to `main`, and manual `workflow_dispatch` runs.
 Automatic runs are scoped to changes in converter directories, `interop/`, the
-Ossie submodule pin, `.gitmodules`, or the workflow itself. This initial rollout
+Ossie submodule pin, `.gitmodules`, or the workflow itself. Changes to any root
+`*/pyproject.toml` also trigger the registration checks, so a newly added Python
+converter cannot silently bypass the matrix. This initial rollout
 uses the full matrix for relevant PRs, covering each changed converter as both
 source and target. Changed-converter selection can reduce that cost later.
 

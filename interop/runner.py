@@ -42,6 +42,20 @@ def _result(grade="OK", reason=""):
     return {"grade": grade, "reason": reason, "commands": [], "diagnostics": []}
 
 
+def _skip(result, reason, *, declared=False, because=None):
+    result.update(
+        grade="SKIP",
+        reason=reason,
+        expected_skip=declared
+        or bool(
+            because
+            and because["grade"] == "SKIP"
+            and because.get("expected_skip", False)
+        ),
+    )
+    return result
+
+
 def _import_unavailable(converter):
     if converter.import_skip:
         return converter.import_skip
@@ -136,7 +150,7 @@ class Runner:
     def prepare(self, converter):
         result = _result()
         if converter.skip:
-            return _result("SKIP", converter.skip)
+            return _skip(result, converter.skip, declared=True)
         needed = ["uv"] if converter.toolchain == "uv" else ["mvn", "java"]
         if not self.prepare_enabled and converter.toolchain == "maven":
             needed = ["java"]
@@ -208,15 +222,16 @@ class Runner:
         else:
             preparation = self.report["preparations"][owner]
             if preparation["grade"] != "OK":
-                result.update(
-                    grade="SKIP",
-                    reason=f"source preparation {preparation['grade']}: {preparation['reason']}",
+                _skip(
+                    result,
+                    f"source preparation {preparation['grade']}: {preparation['reason']}",
+                    because=preparation,
                 )
                 return result, None
             converter = self.manifest.converters[owner]
             unavailable = _import_unavailable(converter)
             if unavailable:
-                result.update(grade="SKIP", reason=unavailable)
+                _skip(result, unavailable, declared=bool(converter.import_skip))
                 return result, None
             stage = self.command(
                 result,
@@ -297,15 +312,18 @@ class Runner:
             "native_gate": _result("SKIP", "export has not succeeded"),
         }
         if data is None:
-            result.update(
-                grade="SKIP", reason=f"source {source['grade']}: {source['reason']}"
+            _skip(
+                result,
+                f"source {source['grade']}: {source['reason']}",
+                because=source,
             )
             return result
         preparation = self.report["preparations"][converter.name]
         if preparation["grade"] != "OK":
-            result.update(
-                grade="SKIP",
-                reason=f"target preparation {preparation['grade']}: {preparation['reason']}",
+            _skip(
+                result,
+                f"target preparation {preparation['grade']}: {preparation['reason']}",
+                because=preparation,
             )
             return result
         directory.mkdir(parents=True)
@@ -356,14 +374,19 @@ class Runner:
             "native_gate": acceptance["native_gate"],
         }
         if acceptance["grade"] not in ("OK", "LOSSY"):
-            result.update(
-                grade="SKIP",
-                reason=f"depends on Tier A {acceptance['grade']}: {acceptance['reason']}",
+            _skip(
+                result,
+                f"depends on Tier A {acceptance['grade']}: {acceptance['reason']}",
+                because=acceptance,
             )
             return result
         unsupported = converter.roundtrip_skip or _import_unavailable(converter)
         if unsupported:
-            result.update(grade="SKIP", reason=unsupported)
+            _skip(
+                result,
+                unsupported,
+                declared=bool(converter.roundtrip_skip or converter.import_skip),
+            )
             return result
         result["diagnostics"] = list(acceptance["diagnostics"])
         result["inventory_before"] = inventory(before)
@@ -485,6 +508,8 @@ class Runner:
         )
         if accepted["grade"] not in ("OK", "LOSSY"):
             result.update(grade=accepted["grade"], reason=accepted["reason"])
+            if accepted["grade"] == "SKIP":
+                _skip(result, accepted["reason"], because=accepted)
             return result
         result["content"] = accepted["content"]
         if regression.category == "sources":
@@ -499,6 +524,8 @@ class Runner:
                 result[key] = returned[key]
         if returned["grade"] not in ("OK", "LOSSY"):
             result.update(grade=returned["grade"], reason=returned["reason"])
+            if returned["grade"] == "SKIP":
+                _skip(result, returned["reason"], because=returned)
             return result
         after = self.validator.module.load_yaml_named(
             Path(result["output"]).read_text(encoding="utf-8"), result["output"]
@@ -552,14 +579,15 @@ class Runner:
             None,
         )
         if pair is None or pair["grade"] not in ("OK", "LOSSY"):
-            result.update(
-                grade="SKIP",
-                reason="pairwise return unavailable: "
+            _skip(
+                result,
+                "pairwise return unavailable: "
                 + (
                     f"{pair['grade']}: {pair['reason']}"
                     if pair
                     else "pair not selected"
                 ),
+                because=pair,
             )
             return result
         result["pair"] = pair["id"]
@@ -614,7 +642,11 @@ def exit_code(report, strict=False):
             + report.get("regressions", [])
             + report.get("document_regressions", [])
         )
-        if any(result["grade"] in ("FAIL", "EMPTY", "SKIP") for result in results):
+        if any(
+            result["grade"] in ("FAIL", "EMPTY")
+            or (result["grade"] == "SKIP" and not result.get("expected_skip", False))
+            for result in results
+        ):
             return 1
         if any(
             case.get("native_gate", {}).get("grade") == "FAIL"

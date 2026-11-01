@@ -21,7 +21,7 @@
 
 - Issue: [apache/ossie-converters#41](https://github.com/apache/ossie-converters/issues/41)
 - Plan agreed: 2026-10-23
-- Status: runner foundation, all 19 converter registrations, native metric-binding
+- Status: runner foundation, all 21 converter registrations, native metric-binding
   regressions, and dialect/key/source regression fixtures implemented. Results
   remain report-only. CI artifact publication is implemented locally; its first
   GitHub-hosted run and any later ratchet remain.
@@ -235,12 +235,38 @@ Evidence: `interop/.runs/pr-62-review-fixes/report.md`. The optional Codex CLI r
 could not run because its configured model is unavailable; direct inspection and
 regression tests were used. GitHub-hosted CI still requires maintainer approval.
 
+## November review follow-up
+
+The branch has been rebased onto main at `46c673d`, with the pinned Ossie submodule
+at `01a5488d840deda309aac68cc0b312c195369b8d`. Palantir and RelationalAI are registered
+as explicit ontology-domain skips, bringing the registry to 21 projects. CI now
+triggers on root `*/pyproject.toml` additions, covers both new directories, and
+uses the same setup-python/setup-uv action pins as main. OrionBelt installs its
+locked obml-validation extra for native semantic checks.
+
+Strict mode now exempts only manifest-declared capability skips (`skip`,
+`import_skip`, `roundtrip_skip`). These are marked `expected_skip: true`, including
+dependent source imports, acceptance cases, pair returns, and regressions. Runtime
+prerequisites, failed upstream stages, and unmarked skips still block strict mode.
+A real strict-mode run selecting only ontology, palantir, relationalai, and polaris
+exits 0. Default CI behavior remains report-only for converter findings.
+
+Verification: 272 tests pass with integration enabled. The 698-case local matrix
+has no harness errors: 65 OK, 219 LOSSY, 94 FAIL, 3 EMPTY, and 317 SKIP; 147 cases
+have a declared-skip marker. Both native binding regressions pass. OrionBelt's
+Flights, dbt orders, and Honeydew orders exports are OK without the missing-package
+warning. All 770 report evidence links resolve. Strict exits 0 for the declared-only
+subset and 1 for the full matrix's genuine findings. Lint, formatting, actionlint,
+and the Apache license audit pass. Evidence: `interop/.runs/review-nov-01/report.md`.
+The previously approved hosted run `40076487045` succeeded and published artifact
+`12997573035`; its downloaded report/evidence links have also been checked.
+
 ## Guidance for a later session
 
 Implementation entry point: [interop/README.md](../../interop/README.md).
-The runner now registers **all 19 top-level converter projects**, including Omni
+The runner now registers **all 21 top-level converter projects**, including Omni
 in this broader phase as requested. There are 16 native fixtures and two canonical
-Ossie documents, scheduling 342 Tier A exports and 288 Tier B ordered returns.
+Ossie documents, scheduling 378 Tier A exports and 320 Tier B ordered returns.
 The original Cube/Databricks/dbt document oracles and both native metric-binding
 chains retain their original scope.
 

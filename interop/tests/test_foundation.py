@@ -63,9 +63,9 @@ def test_committed_manifest_registers_all_converter_projects():
         for p in ROOT.glob("*/pyproject.toml")
         if p.parent.name != "interop"
     } | {"databricks", "polaris", "salesforce"}
-    assert (
-        sum(a != b for a in manifest.converters for b in manifest.converters) == 19 * 18
-    )
+    assert sum(a != b for a in manifest.converters for b in manifest.converters) == len(
+        manifest.converters
+    ) * (len(manifest.converters) - 1)
     assert manifest.converters["databricks"].toolchain == "maven"
     assert manifest.converters["dbt"].fixtures["orders"].is_file()
 

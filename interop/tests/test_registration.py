@@ -151,8 +151,9 @@ def test_unsupported_capability_is_skip_without_running_import(matrix, capabilit
     assert pair["grade"] == "SKIP"
     assert not pair["commands"]
     assert "explicit unsupported capability" in pair["reason"]
+    assert pair["expected_skip"] is True
     assert exit_code(report) == 0
-    assert exit_code(report, strict=True) == 1
+    assert exit_code(report, strict=True) == 0
     if capability != "skip":
         accepted = next(
             c for c in report["cases"] if c["tier"] == "A" and c["target"] == "beta"
@@ -217,6 +218,7 @@ def test_import_file_prerequisite_skips_sources_and_pairs_but_keeps_exports(matr
     runner, report = run([converter("alpha"), target])
     source = next(s for s in report["sources"] if s["owner"] == "beta")
     assert source["grade"] == "SKIP"
+    assert source["expected_skip"] is False
     assert "missing import prerequisite" in source["reason"]
     assert not source["commands"]
     pair = next(
@@ -267,3 +269,12 @@ def test_sigma_counts_metrics_without_physical_columns(tmp_path):
         json.dumps({"pages": [{"elements": [{"metrics": [{"name": "revenue"}]}]}]})
     )
     assert native_content(output, "sigma", "file")["members"] == 1
+
+
+def test_orionbelt_registration_enables_native_semantic_validation():
+    converter = load_manifest(ROOT / "interop/manifest.yaml", ROOT).converters[
+        "orionbelt"
+    ]
+    assert (
+        converter.prepare[converter.prepare.index("--extra") + 1] == "obml-validation"
+    )

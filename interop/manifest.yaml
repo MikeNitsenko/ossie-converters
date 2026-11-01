@@ -133,13 +133,19 @@ converters:
   orionbelt:
     cwd: orionbelt
     toolchain: uv
-    prepare: [uv, sync, --locked, --no-dev]
+    prepare: [uv, sync, --locked, --no-dev, --extra, obml-validation]
     import: [uv, run, --no-sync, ossie-orionbelt, obml-to-ossie, -i, '{input}', -o, '{output}']
     export: [uv, run, --no-sync, ossie-orionbelt, ossie-to-obml, -i, '{input}', -o, '{output}']
     native_format: orionbelt
     output: file
     fixtures:
       tpcds: orionbelt/tests/fixtures/tpcds_as_obml.yaml
+  palantir:
+    cwd: palantir
+    skip: Converts Palantir ontology exports into Ossie ontology documents rather than the core semantic-model schema; requires a separate ontology matrix.
+  relationalai:
+    cwd: relationalai
+    skip: Converts Ossie ontology documents rather than the core semantic-model schema; requires a separate ontology matrix.
   polaris:
     cwd: polaris
     skip: Requires a provisioned Polaris REST catalog; the file matrix does not create or modify live catalogs.

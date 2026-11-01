@@ -125,6 +125,7 @@ def test_ci_policy_retains_exit_codes_and_publishes_after_failure():
     for event in ("push", "pull_request"):
         assert projects <= set(workflow["on"][event]["paths"])
         assert "ossie" in workflow["on"][event]["paths"]
+        assert "*/pyproject.toml" in workflow["on"][event]["paths"]
     job = workflow["jobs"]["interop"]
     assert "continue-on-error" not in job
     assert all("continue-on-error" not in step for step in job["steps"])
