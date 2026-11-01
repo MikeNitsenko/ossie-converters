@@ -120,6 +120,8 @@ examples are intentionally outside this matrix.
   other selected converter. The returned document must pass the pinned validator.
   Named datasets/physical sources, fields, metrics, keys, relationships, and
   extensions are compared. Before/after counts and structural changes are saved.
+  Extension comparisons include the owning model, dataset, field, metric, or
+  relationship, so moving an unchanged payload between objects is reported as loss.
   The full registry currently schedules 378 Tier A and 320 Tier B cases across
   16 native fixtures and two canonical documents. Unsupported directions and
   unavailable or invalid upstream sources remain visible as skips.

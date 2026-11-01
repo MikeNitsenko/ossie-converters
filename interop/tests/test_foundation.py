@@ -196,6 +196,68 @@ def test_equal_counts_do_not_hide_removed_fields_or_changed_keys():
     assert changes["unchecked"]
 
 
+@pytest.mark.parametrize(
+    "target",
+    [
+        (),
+        ("datasets", 0),
+        ("datasets", 1),
+        ("datasets", 0, "fields", 1),
+        ("datasets", 1, "fields", 0),
+        ("metrics", 0),
+        ("relationships", 0),
+    ],
+)
+def test_extension_moves_between_owners_are_structural_changes(tmp_path, target):
+    before = yaml.safe_load(
+        (ROOT / "interop/fixtures/contracts/keys-joined/input.yaml").read_text()
+    )
+    extension = {"vendor_name": "CUBE", "data": '{"type":"time"}'}
+    before["datasets"][0]["fields"][0]["custom_extensions"] = [extension]
+    after = deepcopy(before)
+    moved = after["datasets"][0]["fields"][0].pop("custom_extensions")
+    owner = after
+    for part in target:
+        owner = owner[part]
+    owner["custom_extensions"] = moved
+    validator = Validator(ROOT)
+    for name, data in (("before", before), ("after", after)):
+        path = tmp_path / f"{name}.yaml"
+        path.write_text(yaml.safe_dump(data))
+        assert validator.validate(path)[1] == {"errors": [], "warnings": []}
+    changes = compare_inventory(before, after)
+    assert changes["removed"] == [
+        ["extension", "field", "orders", "order_id", "CUBE", extension["data"]]
+    ]
+    assert len(changes["added"]) == 1
+    assert changes["added"][0][-2:] == ["CUBE", extension["data"]]
+    # Ownership changes must also be detected in the opposite direction.
+    reverse = compare_inventory(after, before)
+    assert reverse["removed"] == changes["added"]
+    assert reverse["added"] == changes["removed"]
+
+
+def test_extension_ownership_is_stable_when_named_objects_are_reordered():
+    before = yaml.safe_load(
+        (ROOT / "interop/fixtures/contracts/keys-joined/input.yaml").read_text()
+    )
+    for ds in before["datasets"]:
+        for field in ds["fields"]:
+            field["custom_extensions"] = [
+                {"vendor_name": "CUBE", "data": json.dumps({"field": field["name"]})},
+                {"vendor_name": "DBT", "data": "{}"},
+            ]
+    after = deepcopy(before)
+    after["datasets"].reverse()
+    for ds in after["datasets"]:
+        ds["fields"].reverse()
+        for field in ds["fields"]:
+            field["custom_extensions"].reverse()
+    changes = compare_inventory(before, after)
+    assert not changes["removed"]
+    assert not changes["added"]
+
+
 def test_structured_diagnostics_and_python_warning_echo(tmp_path):
     path = tmp_path / "stderr.txt"
     path.write_text(
@@ -392,6 +454,52 @@ def test_silent_key_loss_is_lossy_even_without_warnings(matrix):
     assert (
         exit_code(report, strict=True) == 0
     )  # LOSSY is reported, not an automatic blocker.
+
+
+def test_silent_extension_move_is_lossy_even_without_warnings(matrix):
+    converter, _, path = matrix
+    before = deepcopy(MODEL)
+    before["datasets"][0]["fields"][0]["custom_extensions"] = [
+        {"vendor_name": "CUBE", "data": "{}"}
+    ]
+    after = deepcopy(before)
+    after["datasets"][0]["custom_extensions"] = after["datasets"][0]["fields"][0].pop(
+        "custom_extensions"
+    )
+    payload = path / "returned.json"
+    payload.write_text(json.dumps(after))
+    target = replace(
+        converter("beta"),
+        import_command=[
+            sys.executable,
+            "-c",
+            "import shutil, sys; shutil.copyfile(sys.argv[1], sys.argv[2])",
+            str(payload),
+            "{output}",
+        ],
+    )
+    runner = Runner(ROOT, Manifest({"beta": target}, {}), path / "results")
+    case = runner.pair(
+        {"id": "alpha--orders"},
+        before,
+        target,
+        {
+            "id": "alpha--orders--to--beta",
+            "grade": "OK",
+            "diagnostics": [],
+            "output": str(path / "results/native.json"),
+            "native_gate": {"grade": "SKIP"},
+        },
+    )
+    assert case["grade"] == "LOSSY"
+    assert not case["diagnostics"]
+    assert case["inventory_before"] == case["inventory_after"]
+    assert case["inventory_changes"]["removed"] == [
+        ["extension", "field", "orders", "id", "CUBE", "{}"]
+    ]
+    assert case["inventory_changes"]["added"] == [
+        ["extension", "dataset", "orders", "CUBE", "{}"]
+    ]
 
 
 def test_preparation_failure_is_not_misclassified_as_missing_toolchain(matrix):

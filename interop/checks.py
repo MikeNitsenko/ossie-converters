@@ -271,18 +271,30 @@ def compare_inventory(before, after):
 
     def items(data):
         result = Counter()
+
+        def extensions(node, *owner):
+            for extension in node.get("custom_extensions") or []:
+                result[
+                    ("extension", *owner, extension["vendor_name"], extension["data"])
+                ] += 1
+
+        extensions(data, "model")
         for ds in data.get("datasets") or []:
             name = ds["name"]
             result[("dataset", name, ds["source"])] += 1
+            extensions(ds, "dataset", name)
             for field in ds.get("fields") or []:
                 result[("field", name, field["name"])] += 1
+                extensions(field, "field", name, field["name"])
             if ds.get("primary_key"):
                 result[("primary_key", name, *sorted(ds["primary_key"]))] += 1
             for key in ds.get("unique_keys") or []:
                 result[("unique_key", name, *sorted(key))] += 1
         for metric in data.get("metrics") or []:
             result[("metric", metric["name"])] += 1
+            extensions(metric, "metric", metric["name"])
         for rel in data.get("relationships") or []:
+            extensions(rel, "relationship", rel["name"])
             pairs = sorted(zip(rel["from_columns"], rel["to_columns"]))
             result[
                 (
@@ -292,8 +304,6 @@ def compare_inventory(before, after):
                     *[f"{a}={b}" for a, b in pairs],
                 )
             ] += 1
-        for extension in _extensions(data):
-            result[("extension", extension["vendor_name"], extension["data"])] += 1
         return result
 
     left, right = items(before), items(after)
